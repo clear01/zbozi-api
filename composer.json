@@ -1,0 +1,22 @@
+{
+	"name": "clear01/zbozi-api",
+	"description": "Zbozi.cz API implementation",
+	"minimum-stability": "stable",
+	"license": "proprietary",
+	"keywords": ["gpc"],
+	"authors": [
+		{
+			"name": "Clear01 Development",
+			"email": "development@clear01.com"
+		}
+	],
+    "autoload": {
+        "psr-4": {
+            "Clear01\\ZboziApi\\": "src/"
+        }
+	},
+	"require": {
+		"php": ">=7.1",
+		"guzzlehttp/guzzle": "~6.0"
+	}
+}
