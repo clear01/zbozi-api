@@ -6,7 +6,7 @@ Zbozi.cz API implementation in PHP
 Currently, only following features are implemented:
 - Retrieving product reviews
 - Retrieving shop reviews
-- Inserting reactions to shop reviews ()
+- Inserting reactions to shop reviews
 
 
 Installation
