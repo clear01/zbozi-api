@@ -23,7 +23,7 @@ class ShopReview
 	/** @var string|null */
 	protected $shopReaction;
 
-	/** @var ShopReactionState */
+	/** @var ShopReactionState|null */
 	protected $shopReactionState;
 
 	/** @var integer */
@@ -42,7 +42,7 @@ class ShopReview
 		?string $orderId,
 		Satisfaction $satisfaction,
 		?string $shopReaction,
-		ShopReactionState $shopReactionState,
+		?ShopReactionState $shopReactionState,
 		int $shopReviewId,
 		ReviewState $state,
 		?string $userName
@@ -89,7 +89,7 @@ class ShopReview
 		return $this->shopReaction;
 	}
 
-	public function getShopReactionState(): ShopReactionState
+	public function getShopReactionState(): ?ShopReactionState
 	{
 		return $this->shopReactionState;
 	}

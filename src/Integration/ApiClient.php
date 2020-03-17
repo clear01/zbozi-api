@@ -17,7 +17,9 @@ class ApiClient
 	protected $guzzleClient;
 
 	/** @var array */
-	private $guzzleConfig = [];
+	private $guzzleConfig = [
+		"http_errors" => false
+	];
 
 	public function __construct(ApiConfig $config)
 	{
@@ -42,7 +44,7 @@ class ApiClient
 		if($this->guzzleClient) {
 			throw new \RuntimeException('Guzzle client already initialized. Config can be set before the first request is called.');
 		}
-		$this->guzzleConfig = $config;
+		$this->guzzleConfig = array_merge($this->guzzleConfig, $config);
 	}
 
 	protected final function initClient() {

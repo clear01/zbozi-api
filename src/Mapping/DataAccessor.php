@@ -22,7 +22,12 @@ class DataAccessor
 		$this->mandatoryFields = $mandatoryFields;
 	}
 
-	public function get(string $attribute): mixed {
+	/**
+	 * @param string $attribute
+	 * @return mixed
+	 * @throws ZboziApiException
+	 */
+	public function get(string $attribute) {
 		if(!isset($this->data[$attribute])) {
 			if ($this->mandatoryFields && in_array($attribute, $this->mandatoryFields)) {
 				throw new ZboziApiException('Attribute ' . $attribute . ' is mandatory, but was not included in API response.');

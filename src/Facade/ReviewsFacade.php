@@ -39,13 +39,16 @@ class ReviewsFacade
 
 		$productReviews = [];
 		if($response->getStatusCode() === 200) {
-			$data = ContentParser::parseBody($response->getBody()->getContents());
-			if(!isset($data['data'])) {
+			$data = ContentParser::parseBody($response->getBody()
+													  ->getContents());
+			if (!isset($data['data'])) {
 				throw new ZboziApiException('Invalid response');
 			}
-			foreach($data['data'] as $record) {
+			foreach ($data['data'] as $record) {
 				$productReviews[] = ProductReviewMapper::buildFromFlatData($record);
 			}
+		} elseif($response->getStatusCode() === 404) {
+			return [];
 		} else {
 			CommonErrorsHandler::handleResponse($response);
 		}
@@ -58,6 +61,7 @@ class ReviewsFacade
 	 * @throws \Throwable
 	 */
 	public function getShopReviews(\DateTimeInterface $fromDate, ?\DateTimeInterface $toDate, ?int $limit, ?int $offset): array {
+		// todo implement automatic limit and offset configuration to get all available results? (initial import)
 		$query = '?timestampFrom=' . $fromDate->format('U');
 		if($toDate) {
 			$query .= '&timestampTo=' . $toDate->format('U');
@@ -68,7 +72,7 @@ class ReviewsFacade
 		if($offset) {
 			$query .= '&offset=' . $offset;
 		}
-		$response = $this->apiClient->sendRequest('GET', '/v1/shop/product-reviews' . $query);
+		$response = $this->apiClient->sendRequest('GET', '/v1/shop/reviews' . $query);
 		return $this->getShopReviewResults($response);
 	}
 
@@ -78,7 +82,7 @@ class ReviewsFacade
 	 * @throws \Throwable
 	 */
 	public function getShopReviewById(int $reviewId): ?ShopReview {
-		$response = $this->apiClient->sendRequest('GET', '/v1/shop/product-reviews/' . $reviewId);
+		$response = $this->apiClient->sendRequest('GET', '/v1/shop/reviews/' . $reviewId);
 		$result = end($this->getShopReviewResults($response));
 		return $result ? $result : null;
 	}
