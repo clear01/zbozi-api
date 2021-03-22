@@ -17,8 +17,8 @@ class ProductReviewMapper
 		return new ProductReview(
 			\DateTimeImmutable::createFromFormat('U', (string) $dataAccessor->get('createTimestamp')),
 			!$dataAccessor->get('editTimestamp') ? null : \DateTimeImmutable::createFromFormat('U', (string) $dataAccessor->get('editTimestamp')),
-			$dataAccessor->get('negativeComments'),
-			$dataAccessor->get('positiveComments'),
+			$dataAccessor->get('negativeComments') ?? '',
+			$dataAccessor->get('positiveComments') ?? '',
 			ProductDataMapper::buildFromFlatData($dataAccessor->get('productData')),
 			$dataAccessor->get('productReviewId'),
 			$dataAccessor->get('ratingStars'),
