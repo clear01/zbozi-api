@@ -18,7 +18,7 @@ class SatisfactionMapper
 			($answer = $dataAccessor->get('communication')) ? ($answer === 'yes' ? 1 : 0) : null,
 			($answer = $dataAccessor->get('deliveryDate')) ? ($answer === 'yes' ? 1 : 0) : null,
 			($answer = $dataAccessor->get('deliveryQuality')) ? ($answer === 'yes' ? 1 : 0) : null,
-			($answer = $dataAccessor->get('deliveryQuality')) === 'yes' ? 2 : ($answer === 'yes_but' ? 1 : 0)
+			($answer = $dataAccessor->get('overall')) === 'yes' ? 2 : ($answer === 'yes_but' ? 1 : 0)
 		);
 	}
 }
