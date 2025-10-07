@@ -5,44 +5,44 @@ namespace Clear01\ZboziApi\Model;
 
 class ProductData
 {
-	/** @var string */
-	protected $cartProductName;
+    /** @var string */
+    protected $cartProductName;
 
-	/** @var string */
-	protected $itemId;
+    /** @var string */
+    protected $itemId;
 
-	/** @var int|null */
-	protected $productId;
+    /** @var int|null */
+    protected $productId;
 
-	/** @var string|null */
-	protected $productName;
+    /** @var string|null */
+    protected $productName;
 
-	public function __construct(string $cartProductName, string $itemId, int $productId, string $productName)
-	{
-		$this->cartProductName = $cartProductName;
-		$this->itemId = $itemId;
-		$this->productId = $productId;
-		$this->productName = $productName;
-	}
+    public function __construct(string $cartProductName, string $itemId, ?int $productId, ?string $productName)
+    {
+        $this->cartProductName = $cartProductName;
+        $this->itemId = $itemId;
+        $this->productId = $productId;
+        $this->productName = $productName;
+    }
 
-	public function getCartProductName(): string
-	{
-		return $this->cartProductName;
-	}
+    public function getCartProductName(): string
+    {
+        return $this->cartProductName;
+    }
 
-	public function getItemId(): string
-	{
-		return $this->itemId;
-	}
+    public function getItemId(): string
+    {
+        return $this->itemId;
+    }
 
-	public function getProductId(): int
-	{
-		return $this->productId;
-	}
+    public function getProductId(): ?int
+    {
+        return $this->productId;
+    }
 
-	public function getProductName(): string
-	{
-		return $this->productName;
-	}
+    public function getProductName(): ?string
+    {
+        return $this->productName;
+    }
 
 }
