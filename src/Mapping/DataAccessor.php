@@ -38,6 +38,22 @@ class DataAccessor
 		return $this->normalizeData($this->data[$attribute]);
 	}
 
+	/**
+	 * Parses ISO 8601 datetime (e.g. `2025-01-01T00:00:00Z`) into UTC.
+	 * @throws ZboziApiException
+	 */
+	public function getDateTime(string $attribute): ?\DateTimeImmutable {
+		$value = $this->get($attribute);
+		if($value === null) {
+			return null;
+		}
+		try {
+			return (new \DateTimeImmutable((string) $value))->setTimezone(new \DateTimeZone('UTC'));
+		} catch (\Exception $e) {
+			throw new ZboziApiException('Attribute ' . $attribute . ' contains invalid datetime ' . $value . '.', 0, $e);
+		}
+	}
+
 	public function setConsiderEmptyStringAsNull(bool $considerEmptyStringAsNull): void
 	{
 		$this->considerEmptyStringAsNull = $considerEmptyStringAsNull;

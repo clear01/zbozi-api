@@ -8,7 +8,7 @@ use Clear01\ZboziApi\Model\ZboziApiException;
 class ContentParser
 {
 	public static function parseBody(string $body): array {
-		if(!$body || ($bodyData = json_decode($body, true)) === false) {
+		if(!$body || !is_array($bodyData = json_decode($body, true))) {
 			throw new ZboziApiException('Empty body or JSON deserialization failure.');
 		}
 		return $bodyData;

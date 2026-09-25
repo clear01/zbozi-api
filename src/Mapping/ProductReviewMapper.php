@@ -12,15 +12,15 @@ class ProductReviewMapper
 	 */
 	public static function buildFromFlatData(array $data): ProductReview
 	{
-		$dataAccessor = new DataAccessor($data, ['createTimestamp', 'negativeComments', 'positiveComments', 'productData', 'productReviewId', 'state']);
+		$dataAccessor = new DataAccessor($data, ['createDatetime', 'productData', 'productReviewId', 'state']);
 		$dataAccessor->setConsiderEmptyStringAsNull(true);
 		return new ProductReview(
-			\DateTimeImmutable::createFromFormat('U', (string) $dataAccessor->get('createTimestamp')),
-			!$dataAccessor->get('editTimestamp') ? null : \DateTimeImmutable::createFromFormat('U', (string) $dataAccessor->get('editTimestamp')),
-			$dataAccessor->get('negativeComments') ?? '',
-			$dataAccessor->get('positiveComments') ?? '',
+			$dataAccessor->getDateTime('createDatetime'),
+			$dataAccessor->getDateTime('editDatetime'),
+			$dataAccessor->get('negativeComment') ?? '',
+			$dataAccessor->get('positiveComment') ?? '',
 			ProductDataMapper::buildFromFlatData($dataAccessor->get('productData')),
-			$dataAccessor->get('productReviewId'),
+			(string) $dataAccessor->get('productReviewId'),
 			$dataAccessor->get('ratingStars'),
 			ReviewStateMapper::buildFromString($dataAccessor->get('state')),
 			$dataAccessor->get('text'),

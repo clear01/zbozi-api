@@ -11,11 +11,22 @@ use Clear01\ZboziApi\Mapping\ShopReviewMapper;
 use Clear01\ZboziApi\Model\ProductReview;
 use Clear01\ZboziApi\Model\ShopReview;
 use Clear01\ZboziApi\Model\ZboziApiException;
-use Psr\Http\Message\ResponseInterface;
 
 class ReviewsFacade
 {
 	const MAX_REACTION_LENGTH = 10000;
+
+	/** Max page size of GET /nakupy/reviews/ */
+	const SHOP_REVIEWS_PAGE_LIMIT = 100;
+
+	/** Max page size of GET /nakupy/product-reviews/ */
+	const PRODUCT_REVIEWS_LIMIT = 1000;
+
+	/** GET /nakupy/product-reviews/ accepts at most 180 days between fromDatetime and toDatetime */
+	const PRODUCT_REVIEWS_MAX_WINDOW = 179 * 86400;
+
+	/** Full product reviews window is split until it is shorter than this [s] */
+	const PRODUCT_REVIEWS_MIN_WINDOW = 60;
 
 	/** @var ApiClient */
 	protected $apiClient;
@@ -26,85 +37,139 @@ class ReviewsFacade
 	}
 
 	/**
+	 * Returns product reviews created since $fromDate. The period is split into
+	 * windows accepted by the API; a window that hits the page limit is halved.
+	 *
+	 * @param int|null $limit max number of returned reviews, null for all
 	 * @return ProductReview[]
 	 * @throws ZboziApiException
 	 * @throws \Throwable
 	 */
 	public function getProductReviews(\DateTimeInterface $fromDate, ?int $limit): array {
-		$query = '?timestampFrom=' . $fromDate->format('U');
-		if($limit) {
-			$query .= '&limit=' . $limit;
+		$from = $fromDate->getTimestamp();
+		$to = time();
+
+		/** @var ProductReview[] $productReviews indexed by review ID to drop duplicates on window borders */
+		$productReviews = [];
+		while($from < $to) {
+			$windowTo = min($from + self::PRODUCT_REVIEWS_MAX_WINDOW, $to);
+			foreach($this->getProductReviewsInWindow($from, $windowTo) as $productReview) {
+				$productReviews[$productReview->getProductReviewId()] = $productReview;
+				if($limit && count($productReviews) >= $limit) {
+					return array_values($productReviews);
+				}
+			}
+			$from = $windowTo;
 		}
-		$response = $this->apiClient->sendRequest('GET', '/v1/shop/product-reviews' . $query);
+		return array_values($productReviews);
+	}
+
+	/**
+	 * @return ProductReview[]
+	 * @throws ZboziApiException
+	 */
+	protected function getProductReviewsInWindow(int $from, int $to): array {
+		$response = $this->apiClient->sendRequest('GET', '/nakupy/product-reviews/', null, [
+			'fromDatetime' => $this->formatDateTime($from),
+			'toDatetime' => $this->formatDateTime($to),
+			'limit' => self::PRODUCT_REVIEWS_LIMIT,
+		]);
+		if($response->getStatusCode() !== 200) {
+			CommonErrorsHandler::handleResponse($response);
+		}
+
+		$data = ContentParser::parseBody((string) $response->getBody());
+		if(!isset($data['items']) || !is_array($data['items'])) {
+			throw new ZboziApiException('Invalid response');
+		}
+
+		// the endpoint has no paging – a full page may mean some reviews were cut off
+		if(count($data['items']) >= self::PRODUCT_REVIEWS_LIMIT && $to - $from > self::PRODUCT_REVIEWS_MIN_WINDOW) {
+			$middle = (int) (($from + $to) / 2);
+			return array_merge(
+				$this->getProductReviewsInWindow($from, $middle),
+				$this->getProductReviewsInWindow($middle, $to)
+			);
+		}
 
 		$productReviews = [];
-		if($response->getStatusCode() === 200) {
-			$data = ContentParser::parseBody($response->getBody()
-													  ->getContents());
-			if (!isset($data['data'])) {
-				throw new ZboziApiException('Invalid response');
-			}
-			foreach ($data['data'] as $record) {
-				$productReviews[] = ProductReviewMapper::buildFromFlatData($record);
-			}
-		} elseif($response->getStatusCode() === 404) {
-			return [];
-		} else {
-			CommonErrorsHandler::handleResponse($response);
+		foreach($data['items'] as $record) {
+			$productReviews[] = ProductReviewMapper::buildFromFlatData($record);
 		}
 		return $productReviews;
 	}
 
 	/**
+	 * When neither $limit nor $offset is given, all reviews in the period are returned (all pages are loaded).
+	 *
 	 * @return ShopReview[]
 	 * @throws ZboziApiException
 	 * @throws \Throwable
 	 */
 	public function getShopReviews(\DateTimeInterface $fromDate, ?\DateTimeInterface $toDate, ?int $limit, ?int $offset): array {
-		// todo implement automatic limit and offset configuration to get all available results? (initial import)
-		$query = '?timestampFrom=' . $fromDate->format('U');
-		if($toDate) {
-			$query .= '&timestampTo=' . $toDate->format('U');
+		$query = [
+			'fromDatetime' => $this->formatDateTime($fromDate->getTimestamp()),
+			// fixed upper bound keeps offsets stable while paging
+			'toDatetime' => $this->formatDateTime($toDate ? $toDate->getTimestamp() : time()),
+		];
+
+		if($limit !== null || $offset !== null) {
+			if($limit) {
+				$query['limit'] = $limit;
+			}
+			if($offset) {
+				$query['offset'] = $offset;
+			}
+			return $this->getShopReviewPage($query)[0];
 		}
-		if($limit) {
-			$query .= '&limit=' . $limit;
-		}
-		if($offset) {
-			$query .= '&offset=' . $offset;
-		}
-		$response = $this->apiClient->sendRequest('GET', '/v1/shop/reviews' . $query);
-		return $this->getShopReviewResults($response);
+
+		$shopReviews = [];
+		$query['limit'] = self::SHOP_REVIEWS_PAGE_LIMIT;
+		$query['offset'] = 0;
+		do {
+			list($page, $count) = $this->getShopReviewPage($query);
+			$shopReviews = array_merge($shopReviews, $page);
+			$query['offset'] += self::SHOP_REVIEWS_PAGE_LIMIT;
+		} while(count($page) && $query['offset'] < $count);
+
+		return $shopReviews;
 	}
 
 	/**
-	 * @return ShopReview[]
+	 * @return array [ShopReview[], int total count]
+	 * @throws ZboziApiException
+	 */
+	protected function getShopReviewPage(array $query): array {
+		$response = $this->apiClient->sendRequest('GET', '/nakupy/reviews/', null, $query);
+		if($response->getStatusCode() !== 200) {
+			CommonErrorsHandler::handleResponse($response);
+		}
+
+		$data = ContentParser::parseBody((string) $response->getBody());
+		if(!isset($data['items']) || !is_array($data['items'])) {
+			throw new ZboziApiException('Invalid response');
+		}
+
+		$shopReviews = [];
+		foreach($data['items'] as $record) {
+			$shopReviews[] = ShopReviewMapper::buildFromFlatData($record);
+		}
+		return [$shopReviews, (int) ($data['meta']['count'] ?? count($shopReviews))];
+	}
+
+	/**
 	 * @throws ZboziApiException
 	 * @throws \Throwable
 	 */
 	public function getShopReviewById(int $reviewId): ?ShopReview {
-		$response = $this->apiClient->sendRequest('GET', '/v1/shop/reviews/' . $reviewId);
-		$result = end($this->getShopReviewResults($response));
-		return $result ? $result : null;
-	}
-
-	/**
-	 * @return ShopReview[]
-	 * @throws ZboziApiException
-	 */
-	protected function getShopReviewResults(ResponseInterface $response) {
-		$shopReviews = [];
-		if($response->getStatusCode() === 200 || $response->getStatusCode() === 206) {
-			$data = ContentParser::parseBody($response->getBody()->getContents());
-			if(!isset($data['data'])) {
-				throw new ZboziApiException('Invalid response');
-			}
-			foreach($data['data'] as $record) {
-				$shopReviews[] = ShopReviewMapper::buildFromFlatData($record);
-			}
-		} else {
+		$response = $this->apiClient->sendRequest('GET', '/nakupy/reviews/' . $reviewId);
+		if($response->getStatusCode() === 404) {
+			return null;
+		}
+		if($response->getStatusCode() !== 200) {
 			CommonErrorsHandler::handleResponse($response);
 		}
-		return $shopReviews;
+		return ShopReviewMapper::buildFromFlatData(ContentParser::parseBody((string) $response->getBody()));
 	}
 
 	/**
@@ -114,14 +179,18 @@ class ReviewsFacade
 	 * @throws \Throwable
 	 */
 	public function addShopReviewReaction(int $reviewId, string $reaction) {
-		if(!strlen($reaction) || strlen($reaction) > self::MAX_REACTION_LENGTH) {
+		if(!strlen($reaction) || mb_strlen($reaction, 'UTF-8') > self::MAX_REACTION_LENGTH) {
 			throw new \InvalidArgumentException(sprintf('Reaction length must be between 1 and %d', self::MAX_REACTION_LENGTH));
 		}
-		$response = $this->apiClient->sendRequest('PUT', '/v1/shop/reviews/' . $reviewId . '/reaction', json_encode([
+		$response = $this->apiClient->sendRequest('PUT', '/nakupy/reviews/' . $reviewId . '/reaction', json_encode([
 			'reaction' => $reaction
 		]));
 		if($response->getStatusCode() !== 201) {
 			CommonErrorsHandler::handleResponse($response);
 		}
+	}
+
+	private function formatDateTime(int $timestamp): string {
+		return gmdate('Y-m-d\TH:i:s\Z', $timestamp);
 	}
 }
