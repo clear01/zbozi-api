@@ -11,6 +11,7 @@ use Clear01\ZboziApi\Mapping\ShopReviewMapper;
 use Clear01\ZboziApi\Model\ProductReview;
 use Clear01\ZboziApi\Model\ShopReview;
 use Clear01\ZboziApi\Model\ZboziApiException;
+use Psr\Http\Message\ResponseInterface;
 
 class ReviewsFacade
 {
@@ -74,6 +75,9 @@ class ReviewsFacade
 			'toDatetime' => $this->formatDateTime($to),
 			'limit' => self::PRODUCT_REVIEWS_LIMIT,
 		]);
+		if($this->isNoReviewsResponse($response)) {
+			return [];
+		}
 		if($response->getStatusCode() !== 200) {
 			CommonErrorsHandler::handleResponse($response);
 		}
@@ -141,6 +145,9 @@ class ReviewsFacade
 	 */
 	protected function getShopReviewPage(array $query): array {
 		$response = $this->apiClient->sendRequest('GET', '/nakupy/reviews/', null, $query);
+		if($this->isNoReviewsResponse($response)) {
+			return [[], 0];
+		}
 		if($response->getStatusCode() !== 200) {
 			CommonErrorsHandler::handleResponse($response);
 		}
@@ -188,6 +195,27 @@ class ReviewsFacade
 		if($response->getStatusCode() !== 201) {
 			CommonErrorsHandler::handleResponse($response);
 		}
+	}
+
+	/**
+	 * Review listings return HTTP 404 `{"detail": [{"type": "entity_not_found", "entity_type": "product reviews"}]}`
+	 * instead of an empty list when there is no review in the requested period.
+	 * Other 404s (e.g. unknown premise) are not matched and are handled as errors.
+	 */
+	private function isNoReviewsResponse(ResponseInterface $response): bool {
+		if($response->getStatusCode() !== 404) {
+			return false;
+		}
+		$data = json_decode((string) $response->getBody(), true);
+		if(!is_array($data) || !isset($data['detail']) || !is_array($data['detail'])) {
+			return false;
+		}
+		foreach($data['detail'] as $detail) {
+			if(!is_array($detail) || ($detail['type'] ?? null) !== 'entity_not_found' || stripos((string) ($detail['entity_type'] ?? ''), 'review') === false) {
+				return false;
+			}
+		}
+		return count($data['detail']) > 0;
 	}
 
 	private function formatDateTime(int $timestamp): string {
